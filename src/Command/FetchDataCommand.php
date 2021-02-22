@@ -12,18 +12,22 @@ use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Exception\RuntimeException;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
+use InvalidArgumentException;
 
 class FetchDataCommand extends Command
 {
     private const SOURCE = 'https://trailers.apple.com/trailers/home/rss/newtrailers.rss';
+    private const COUNT_IMPORT_ITEMS = 10;
 
     protected static $defaultName = 'fetch:trailers';
 
     private ClientInterface $httpClient;
     private LoggerInterface $logger;
     private string $source;
+    private int $count;
     private EntityManagerInterface $doctrine;
 
     /**
@@ -40,6 +44,8 @@ class FetchDataCommand extends Command
         $this->httpClient = $httpClient;
         $this->logger = $logger;
         $this->doctrine = $em;
+        $this->source = self::SOURCE;
+        $this->count = self::COUNT_IMPORT_ITEMS;
     }
 
     public function configure(): void
@@ -47,25 +53,70 @@ class FetchDataCommand extends Command
         $this
             ->setDescription('Fetch data from iTunes Movie Trailers')
             ->addArgument('source', InputArgument::OPTIONAL, 'Overwrite source')
+            ->addOption('count', 'c', InputOption::VALUE_OPTIONAL, 'Number of imported records', self::COUNT_IMPORT_ITEMS);
         ;
+    }
+
+    /**
+     * Get url of source data.
+     *
+     * @return string
+     */
+    public function getSource(): string
+    {
+        return $this->source;
+    }
+
+    /**
+     * Set url of source data.
+     *
+     * @param string $source
+     */
+    public function setSource(string $source): void
+    {
+        $this->source = $source;
+    }
+
+    /**
+     * Get number of imported records.
+     *
+     * @return int
+     */
+    public function getCount(): int
+    {
+        return $this->count;
+    }
+
+    /**
+     * Set number of imported records.
+     *
+     * @param int $count
+     */
+    public function setCount(int $count): void
+    {
+        $this->count = $count;
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $this->logger->info(sprintf('Start %s at %s', __CLASS__, (string) date_create()->format(DATE_ATOM)));
-        $source = self::SOURCE;
-        if ($input->getArgument('source')) {
-            $source = $input->getArgument('source');
+
+        $sourceArgument = $input->getArgument('source');
+        if (null !== $sourceArgument) {
+            if (!is_string($sourceArgument)) {
+                throw new InvalidArgumentException('Source must be string.');
+            }
+            $this->setSource($sourceArgument);
         }
 
-        if (!is_string($source)) {
-            throw new RuntimeException('Source must be string');
+        $countOption = (int) $input->getOption('count');
+        if (!is_integer($countOption)) {
+            throw new InvalidArgumentException('Source must be integer.');
         }
-        $io = new SymfonyStyle($input, $output);
-        $io->title(sprintf('Fetch data from %s', $source));
+        $this->setCount($countOption);
 
         try {
-            $response = $this->httpClient->sendRequest(new Request('GET', $source));
+            $response = $this->httpClient->sendRequest(new Request('GET', $this->getSource()));
         } catch (ClientExceptionInterface $e) {
             throw new RuntimeException($e->getMessage());
         }
@@ -89,7 +140,13 @@ class FetchDataCommand extends Command
         if (!property_exists($xml, 'channel')) {
             throw new RuntimeException('Could not find \'channel\' element in feed');
         }
-        foreach ($xml->channel->item as $item) {
+
+        // Check if the count argument is greater than the data in the source
+        $realCountItem = (count($xml->channel->item) < $this->getCount()) ? count($xml->channel->item) : $this->getCount();
+
+        for ($i = 0; $i < $realCountItem; $i++) {
+            $item = $xml->channel->item[$i];
+
             $trailer = $this->getMovie((string) $item->title)
                 ->setTitle((string) $item->title)
                 ->setDescription((string) $item->description)
