@@ -4,10 +4,13 @@ namespace App\Command;
 
 use App\Entity\Movie;
 use Doctrine\ORM\EntityManagerInterface;
+use DOMDocument;
+use DOMXPath;
 use GuzzleHttp\Psr7\Request;
 use Psr\Http\Client\ClientExceptionInterface;
 use Psr\Http\Client\ClientInterface;
 use Psr\Log\LoggerInterface;
+use SimpleXMLElement;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Exception\RuntimeException;
 use Symfony\Component\Console\Input\InputArgument;
@@ -115,6 +118,9 @@ class FetchDataCommand extends Command
         }
         $this->setCount($countOption);
 
+        $io = new SymfonyStyle($input, $output);
+        $io->title(sprintf('Fetch data from %s', $this->getSource()));
+
         try {
             $response = $this->httpClient->sendRequest(new Request('GET', $this->getSource()));
         } catch (ClientExceptionInterface $e) {
@@ -134,29 +140,36 @@ class FetchDataCommand extends Command
     protected function processXml(string $data): void
     {
         $xml = (new \SimpleXMLElement($data))->children();
-//        $namespace = $xml->getNamespaces(true)['content'];
-//        dd((string) $xml->channel->item[0]->children($namespace)->encoded);
+        $namespace = $xml->getNamespaces(true);
+        //dd((string) $xml->channel->item[0]->children($namespace['content'])->encoded);
 
         if (!property_exists($xml, 'channel')) {
             throw new RuntimeException('Could not find \'channel\' element in feed');
         }
 
         // Check if the count argument is greater than the data in the source
-        $realCountItem = (count($xml->channel->item) < $this->getCount()) ? count($xml->channel->item) : $this->getCount();
+        $countItems = count($xml->channel->item);
+        $startIndex = ($countItems - $this->getCount()) < 0 ? 0 : $countItems - $this->getCount();
+        $endIndex = ($startIndex + $this->getCount()) > $countItems ? $countItems : $startIndex + $this->getCount();
 
-        for ($i = 0; $i < $realCountItem; $i++) {
+        for ($i = $startIndex; $i < $endIndex ; $i++) {
+            /** @var SimpleXMLElement $item */
             $item = $xml->channel->item[$i];
 
-            $trailer = $this->getMovie((string) $item->title)
-                ->setTitle((string) $item->title)
-                ->setDescription((string) $item->description)
-                ->setLink((string) $item->link)
-                ->setPubDate($this->parseDate((string) $item->pubDate))
-            ;
+            if ($item->getName() == 'item') {
+                $posterURI = $this->parsePoster((string)$item->children($namespace['content'])->encoded);
 
-            $this->doctrine->persist($trailer);
+                $trailer = $this->getMovie((string)$item->title)
+                    ->setTitle((string)$item->title)
+                    ->setDescription((string)$item->description)
+                    ->setLink((string)$item->link)
+                    ->setPubDate($this->parseDate((string)$item->pubDate))
+                    ->setImage($posterURI);
+                ;
+
+                $this->doctrine->persist($trailer);
+            }
         }
-
         $this->doctrine->flush();
     }
 
@@ -181,5 +194,16 @@ class FetchDataCommand extends Command
         }
 
         return $item;
+    }
+
+    protected function parsePoster(string $html): ?string
+    {
+        $parser = xml_parser_create();
+        xml_parse_into_struct($parser, $html, $values, $index);
+        xml_parser_free($parser);
+
+        foreach ($values as $item) {
+            if ($item['tag'] == 'IMG') return $item['attributes']['SRC'];
+        }
     }
 }
