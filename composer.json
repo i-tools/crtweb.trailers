@@ -29,7 +29,8 @@
     "twig/twig": "^v3.0",
     "ext-xml": "*",
     "ext-libxml": "*",
-    "ext-xmlreader": "*"
+    "ext-xmlreader": "*",
+    "ext-dom": "*"
   },
   "require-dev": {
     "friendsofphp/php-cs-fixer": "^3.0.x-dev",
