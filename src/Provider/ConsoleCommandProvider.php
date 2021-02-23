@@ -2,9 +2,9 @@
 
 namespace App\Provider;
 
-use App\Command\{FetchDataCommand, RouteListCommand};
+use App\Command\{DatabaseCreateCommand, DatabaseDropCommand, FetchDataCommand, RouteListCommand};
 use App\Container\Container;
-use App\Support\{CommandMap, ServiceProviderInterface};
+use App\Support\{CommandMap, Config, ServiceProviderInterface};
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Container\ContainerInterface;
 use Psr\Http\Client\ClientInterface;
@@ -23,7 +23,17 @@ class ConsoleCommandProvider implements ServiceProviderInterface
             return new FetchDataCommand($container->get(ClientInterface::class), $container->get(LoggerInterface::class), $container->get(EntityManagerInterface::class));
         });
 
+        $container->set(DatabaseCreateCommand::class, static function (ContainerInterface $container) {
+            return new DatabaseCreateCommand($container->get(EntityManagerInterface::class));
+        });
+
+        $container->set(DatabaseDropCommand::class, static function (ContainerInterface $container) {
+            return new DatabaseDropCommand($container->get(EntityManagerInterface::class));
+        });
+
         $container->get(CommandMap::class)->set(RouteListCommand::getDefaultName(), RouteListCommand::class);
         $container->get(CommandMap::class)->set(FetchDataCommand::getDefaultName(), FetchDataCommand::class);
+        $container->get(CommandMap::class)->set(DatabaseCreateCommand::getDefaultName(), DatabaseCreateCommand::class);
+        $container->get(CommandMap::class)->set(DatabaseDropCommand::getDefaultName(), DatabaseDropCommand::class);
     }
 }
