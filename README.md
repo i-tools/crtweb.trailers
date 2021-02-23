@@ -25,9 +25,14 @@ DATABASE=mysql://user:password@localhost:3306/database
 ```console
 composer install
 ```
-И создайте базу данных если она не создана
+Создайте базу данных если она не создана и у Вас есть права на создание БД
 ```console
 bin/console orm:database:create
+```
+
+Создайте схему
+```console
+bin/console orm:schema-tool:create
 ```
 
 Импорт исходных данных
@@ -47,7 +52,6 @@ Options:
   -l, --import-last     Опция указывает что необходимо импортировать последние записи
 ```
 
-
 Запуск
 ------
 
@@ -61,3 +65,8 @@ composer run server.start
 [Tue Feb 23 09:56:52 2021] PHP 8.0.2 Development Server (http://localhost:8080) started
 ```
 далее в браузере можно открыть страницу по адресу http://localhost:8080
+
+Что можно еще реализовать
+-------------------------
+- Валидацию URL исходных данных в консольной команде.
+- Валидацию формата исходных данных через XSD
