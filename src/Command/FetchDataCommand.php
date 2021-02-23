@@ -36,6 +36,7 @@ class FetchDataCommand extends Command
     private int $count;
     private bool $importLast;
     private EntityManagerInterface $doctrine;
+    private SymfonyStyle $io;
 
     /**
      * FetchDataCommand constructor.
@@ -140,13 +141,12 @@ class FetchDataCommand extends Command
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        $this->logger->info(sprintf('Start %s at %s', __CLASS__, (string) date_create()->format(DATE_ATOM)));
-        $io = new SymfonyStyle($input, $output);
+        $this->io = new SymfonyStyle($input, $output);
 
         $sourceArgument = $input->getArgument('source');
         if (null !== $sourceArgument) {
             if (!is_file($sourceArgument) && filter_var($sourceArgument, FILTER_VALIDATE_URL) !== true) {
-                $io->error('Source data is not a file or url.');
+                $this->io->error('Source data is not a file or url.');
                 return 1;
             }
             $this->setSource($sourceArgument);
@@ -160,13 +160,13 @@ class FetchDataCommand extends Command
         $this->setImportLast((bool)$input->getOption('import-last'));
 
         // Validate source data
-        $io->title(sprintf('Validate data from %s', $this->getSource()));
+        $this->io->title(sprintf('Validate data from %s', $this->getSource()));
         if ($this->validateXml('./schemes/trailers.xsd')) {
-            $io->success('Validation success.');
+            $this->io->success('Validation success.');
         }
 
         // Load source data
-        $io->title(sprintf('Fetch data from %s', $this->getSource()));
+        $this->io->title(sprintf('Fetch data from %s', $this->getSource()));
         if (is_file($this->getSource())) {
             $data = file_get_contents($this->getSource());
         } else {
@@ -183,8 +183,7 @@ class FetchDataCommand extends Command
 
         // Parsing data
         $this->processXml($data);
-
-        $this->logger->info(sprintf('End %s at %s', __CLASS__, (string) date_create()->format(DATE_ATOM)));
+        $this->io->success('Fetch success.');
 
         return 0;
     }
@@ -272,10 +271,10 @@ class FetchDataCommand extends Command
         $item = $this->doctrine->getRepository(Movie::class)->findOneBy(['title' => $title]);
 
         if ($item === null) {
-            $this->logger->info('Create new Movie', ['title' => $title]);
+            $this->io->writeln(sprintf('<info> [INFO] Create new Movie %s</info>', $title));
             $item = new Movie();
         } else {
-            $this->logger->info('Move found', ['title' => $title]);
+            $this->io->writeln(sprintf(' [INFO] <info>Movie found %s</info>', $title));
         }
 
         if (!($item instanceof Movie)) {
