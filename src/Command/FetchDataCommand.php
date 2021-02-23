@@ -161,7 +161,7 @@ class FetchDataCommand extends Command
 
         // Validate source data
         $io->title(sprintf('Validate data from %s', $this->getSource()));
-        if ($this->validateXml('./schemas/trailers.xsd')) {
+        if ($this->validateXml('./schemes/trailers.xsd')) {
             $io->success('Validation success.');
         }
 
@@ -238,10 +238,25 @@ class FetchDataCommand extends Command
         $reader->open($this->getSource());
         $reader->setParserProperty(XMLReader::VALIDATE, true);
 
-        //validating xml
+        // xml validate
         if (!$reader->isValid()) {
             $errors = $this->getErrorsXML();
-            throw new RuntimeException(sprintf("Source data `%s` is not valid :\n%s", $this->xmlFile, $errors));
+            throw new RuntimeException(sprintf("Source data `%s` is not valid :\n%s", $this->getSource(), $errors));
+        }
+
+        //validating with xsd
+        if (null !== $xsdFile) {
+            if (!is_file($xsdFile)) {
+                throw new RuntimeException(sprintf('XSD file %s not found.', $xsdFile));
+            }
+
+            $xml = new DOMDocument();
+            $xml->load($this->getSource());
+
+            if (!$xml->schemaValidate($xsdFile)) {
+                $errors = $this->getErrorsXML();
+                throw new RuntimeException(sprintf("Document `%s` does not validate XSD file :\n%s", $this->getSource(), $errors));
+            }
         }
 
         return true;
