@@ -31,6 +31,7 @@ class FetchDataCommand extends Command
     private LoggerInterface $logger;
     private string $source;
     private int $count;
+    private bool $importLast;
     private EntityManagerInterface $doctrine;
 
     /**
@@ -49,6 +50,7 @@ class FetchDataCommand extends Command
         $this->doctrine = $em;
         $this->source = self::SOURCE;
         $this->count = self::COUNT_IMPORT_ITEMS;
+        $this->importLast = false;
     }
 
     public function configure(): void
@@ -56,8 +58,25 @@ class FetchDataCommand extends Command
         $this
             ->setDescription('Fetch data from iTunes Movie Trailers')
             ->addArgument('source', InputArgument::OPTIONAL, 'Overwrite source')
-            ->addOption('count', 'c', InputOption::VALUE_OPTIONAL, 'Number of imported records', self::COUNT_IMPORT_ITEMS);
+            ->addOption('count', 'c', InputOption::VALUE_OPTIONAL, 'Number of imported records', self::COUNT_IMPORT_ITEMS)
+            ->addOption('import-last', 'l', InputOption::VALUE_NONE, 'Import recent records');
         ;
+    }
+
+    /**
+     * @return bool
+     */
+    public function isImportLast(): bool
+    {
+        return $this->importLast;
+    }
+
+    /**
+     * @param bool $importLast
+     */
+    public function setImportLast(bool $importLast): void
+    {
+        $this->importLast = $importLast;
     }
 
     /**
@@ -112,11 +131,13 @@ class FetchDataCommand extends Command
             $this->setSource($sourceArgument);
         }
 
-        $countOption = (int) $input->getOption('count');
+        $countOption = (int)$input->getOption('count');
         if (!is_integer($countOption)) {
             throw new InvalidArgumentException('Source must be integer.');
         }
         $this->setCount($countOption);
+
+        $this->setImportLast((bool)$input->getOption('import-last'));
 
         $io = new SymfonyStyle($input, $output);
         $io->title(sprintf('Fetch data from %s', $this->getSource()));
@@ -149,8 +170,13 @@ class FetchDataCommand extends Command
 
         // Check if the count argument is greater than the data in the source
         $countItems = count($xml->channel->item);
-        $startIndex = ($countItems - $this->getCount()) < 0 ? 0 : $countItems - $this->getCount();
-        $endIndex = ($startIndex + $this->getCount()) > $countItems ? $countItems : $startIndex + $this->getCount();
+        if ( $this->importLast ) {
+            $startIndex = ($countItems - $this->getCount()) < 0 ? 0 : $countItems - $this->getCount();
+            $endIndex = ($startIndex + $this->getCount()) > $countItems ? $countItems : $startIndex + $this->getCount();
+        } else {
+            $startIndex = 0;
+            $endIndex = ($countItems < $this->getCount()) ? $countItems : $this->getCount();
+        }
 
         for ($i = $startIndex; $i < $endIndex ; $i++) {
             /** @var SimpleXMLElement $item */
