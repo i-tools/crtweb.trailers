@@ -126,12 +126,8 @@ class FetchDataCommand extends Command
 
         $sourceArgument = $input->getArgument('source');
         if (null !== $sourceArgument) {
-            if (!is_string($sourceArgument)) {
-                $io->error('Source must be string.');
-                return 1;
-            }
-            if (filter_var($sourceArgument, FILTER_VALIDATE_URL) !== true) {
-                $io->error('Source is not in the correct format URL.');
+            if (!is_file($sourceArgument) && filter_var($sourceArgument, FILTER_VALIDATE_URL) !== true) {
+                $io->error('Source data is not a file or url.');
                 return 1;
             }
             $this->setSource($sourceArgument);
