@@ -122,11 +122,17 @@ class FetchDataCommand extends Command
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $this->logger->info(sprintf('Start %s at %s', __CLASS__, (string) date_create()->format(DATE_ATOM)));
+        $io = new SymfonyStyle($input, $output);
 
         $sourceArgument = $input->getArgument('source');
         if (null !== $sourceArgument) {
             if (!is_string($sourceArgument)) {
-                throw new InvalidArgumentException('Source must be string.');
+                $io->error('Source must be string.');
+                return 1;
+            }
+            if (filter_var($sourceArgument, FILTER_VALIDATE_URL) !== true) {
+                $io->error('Source is not in the correct format URL.');
+                return 1;
             }
             $this->setSource($sourceArgument);
         }
@@ -139,9 +145,7 @@ class FetchDataCommand extends Command
 
         $this->setImportLast((bool)$input->getOption('import-last'));
 
-        $io = new SymfonyStyle($input, $output);
         $io->title(sprintf('Fetch data from %s', $this->getSource()));
-
         try {
             $response = $this->httpClient->sendRequest(new Request('GET', $this->getSource()));
         } catch (ClientExceptionInterface $e) {
