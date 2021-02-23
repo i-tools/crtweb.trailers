@@ -142,15 +142,20 @@ class FetchDataCommand extends Command
         $this->setImportLast((bool)$input->getOption('import-last'));
 
         $io->title(sprintf('Fetch data from %s', $this->getSource()));
-        try {
-            $response = $this->httpClient->sendRequest(new Request('GET', $this->getSource()));
-        } catch (ClientExceptionInterface $e) {
-            throw new RuntimeException($e->getMessage());
+
+        if (is_file($this->getSource())) {
+            $data = file_get_contents($this->getSource());
+        } else {
+            try {
+                $response = $this->httpClient->sendRequest(new Request('GET', $this->getSource()));
+            } catch (ClientExceptionInterface $e) {
+                throw new RuntimeException($e->getMessage());
+            }
+            if (($status = $response->getStatusCode()) !== 200) {
+                throw new RuntimeException(sprintf('Response status is %d, expected %d', $status, 200));
+            }
+            $data = $response->getBody()->getContents();
         }
-        if (($status = $response->getStatusCode()) !== 200) {
-            throw new RuntimeException(sprintf('Response status is %d, expected %d', $status, 200));
-        }
-        $data = $response->getBody()->getContents();
         $this->processXml($data);
 
         $this->logger->info(sprintf('End %s at %s', __CLASS__, (string) date_create()->format(DATE_ATOM)));
@@ -170,7 +175,7 @@ class FetchDataCommand extends Command
 
         // Check if the count argument is greater than the data in the source
         $countItems = count($xml->channel->item);
-        if ( $this->importLast ) {
+        if ( $this->isImportLast()) {
             $startIndex = ($countItems - $this->getCount()) < 0 ? 0 : $countItems - $this->getCount();
             $endIndex = ($startIndex + $this->getCount()) > $countItems ? $countItems : $startIndex + $this->getCount();
         } else {
