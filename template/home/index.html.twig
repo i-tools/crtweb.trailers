@@ -8,7 +8,7 @@
         <table class="table table-bordered">
             {% for trailer in trailers %}
                 <tr>
-                    <td width="135"><img src="{{ trailer.image }}" alt="{{ trailer.title }}" border="0" /></td>
+                    <td width="135" ><img src="{{ trailer.image }}" alt="{{ trailer.title }}" width="135" height="200" border="0" /></td>
                     <td><a href="/trailer/{{ trailer.id }}" title="{{ trailer.title }}">{{ trailer.title }}</a></td>
                 </tr>
             {% endfor %}
