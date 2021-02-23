@@ -7,6 +7,7 @@ use Doctrine\ORM\EntityManagerInterface;
 use DOMDocument;
 use DOMXPath;
 use GuzzleHttp\Psr7\Request;
+use JetBrains\PhpStorm\Pure;
 use Psr\Http\Client\ClientExceptionInterface;
 use Psr\Http\Client\ClientInterface;
 use Psr\Log\LoggerInterface;
@@ -19,6 +20,7 @@ use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use InvalidArgumentException;
+use XMLReader;
 
 class FetchDataCommand extends Command
 {
@@ -30,6 +32,7 @@ class FetchDataCommand extends Command
     private ClientInterface $httpClient;
     private LoggerInterface $logger;
     private string $source;
+    private ?string $data;
     private int $count;
     private bool $importLast;
     private EntityManagerInterface $doctrine;
@@ -61,6 +64,22 @@ class FetchDataCommand extends Command
             ->addOption('count', 'c', InputOption::VALUE_OPTIONAL, 'Number of imported records', self::COUNT_IMPORT_ITEMS)
             ->addOption('import-last', 'l', InputOption::VALUE_NONE, 'Import recent records');
         ;
+    }
+
+    /**
+     * @return string|null
+     */
+    public function getData(): ?string
+    {
+        return $this->data;
+    }
+
+    /**
+     * @param string|null $data
+     */
+    public function setData(?string $data): void
+    {
+        $this->data = $data;
     }
 
     /**
@@ -138,11 +157,16 @@ class FetchDataCommand extends Command
             throw new InvalidArgumentException('Source must be integer.');
         }
         $this->setCount($countOption);
-
         $this->setImportLast((bool)$input->getOption('import-last'));
 
-        $io->title(sprintf('Fetch data from %s', $this->getSource()));
+        // Validate source data
+        $io->title(sprintf('Validate data from %s', $this->getSource()));
+        if ($this->validateXml('./schemas/trailers.xsd')) {
+            $io->success('Validation success.');
+        }
 
+        // Load source data
+        $io->title(sprintf('Fetch data from %s', $this->getSource()));
         if (is_file($this->getSource())) {
             $data = file_get_contents($this->getSource());
         } else {
@@ -156,6 +180,8 @@ class FetchDataCommand extends Command
             }
             $data = $response->getBody()->getContents();
         }
+
+        // Parsing data
         $this->processXml($data);
 
         $this->logger->info(sprintf('End %s at %s', __CLASS__, (string) date_create()->format(DATE_ATOM)));
@@ -204,6 +230,23 @@ class FetchDataCommand extends Command
         $this->doctrine->flush();
     }
 
+    protected function validateXml(string $xsdFile = null): bool
+    {
+        libxml_use_internal_errors(true);
+
+        $reader = new XMLReader();
+        $reader->open($this->getSource());
+        $reader->setParserProperty(XMLReader::VALIDATE, true);
+
+        //validating xml
+        if (!$reader->isValid()) {
+            $errors = $this->getErrorsXML();
+            throw new RuntimeException(sprintf("Source data `%s` is not valid :\n%s", $this->xmlFile, $errors));
+        }
+
+        return true;
+    }
+
     protected function parseDate(string $date): \DateTime
     {
         return new \DateTime($date);
@@ -236,5 +279,24 @@ class FetchDataCommand extends Command
         foreach ($values as $item) {
             if ($item['tag'] == 'IMG') return $item['attributes']['SRC'];
         }
+    }
+
+    public function getErrorsXML(): ?string
+    {
+        $errorsString = '';
+        $errors = libxml_get_errors();
+
+        foreach ($errors as $key => $error) {
+            $level = $error->level === LIBXML_ERR_WARNING ? 'Warning' : ($error->level === LIBXML_ERR_ERROR ? 'Error' : 'Fatal');
+            $errorsString .= sprintf("    [%s] %s", $level, $error->message);
+
+            if($error->file) {
+                $errorsString .= sprintf("    in %s (line %s, col %s)", $error->file, $error->line, $error->column);
+            }
+
+            $errorsString .= "\n";
+        }
+
+        return $errorsString;
     }
 }
