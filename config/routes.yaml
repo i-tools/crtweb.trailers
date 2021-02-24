@@ -10,3 +10,9 @@ view:
   controller: App\Controller\HomeController
   action: view
 
+like:
+  method: 'get'
+  path: trailer/{id:[0-9]+}/like
+  controller: App\Controller\HomeController
+  action: like
+
