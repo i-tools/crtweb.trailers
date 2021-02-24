@@ -10,11 +10,12 @@ class MovieRepository extends EntityRepository
     public function findById(int $id, int $mode = Query::HYDRATE_ARRAY): ?array
     {
         $result = $this->createQueryBuilder('m')
+            ->leftJoin('m.likes', 'l')
             ->andWhere('m.id = '.$id)
             ->getQuery()
-            ->getResult($mode)
+            ->getOneOrNullResult($mode)
             ;
 
-        return ($result) ? $result[0] : null;
+        return $result;
     }
 }
