@@ -43,6 +43,18 @@ final class Movie
      */
     private ?string $image;
 
+    /**
+     * @ORM\OneToOne(targetEntity=Likes::class, inversedBy="movie", cascade={"persist", "remove"})
+     * @ORM\JoinColumn(name="like_id", referencedColumnName="id")
+     */
+    private ?Likes $likes = null;
+
+    public function __construct()
+    {
+        $this->likes = new Likes();
+        $this->likes->setMovie($this);
+    }
+
     public function getImage(): ?string
     {
         return $this->image;
@@ -106,5 +118,21 @@ final class Movie
         $this->pubDate = $pubDate;
 
         return $this;
+    }
+
+    /**
+     * @return Likes|null
+     */
+    public function getLikes(): ?Likes
+    {
+        return $this->likes;
+    }
+
+    /**
+     * @param Likes $like
+     */
+    public function setLikes(Likes $like): void
+    {
+        $this->likes = $like;
     }
 }
