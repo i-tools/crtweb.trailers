@@ -2,7 +2,9 @@
 
 namespace App\Controller;
 
+use App\Entity\Likes;
 use App\Entity\Movie;
+use App\Repository\LikesRepository;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\EntityManagerInterface;
@@ -52,6 +54,19 @@ class HomeController
         return $response;
     }
 
+    public function like(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        try {
+            $this->addTrailerLike((int)$args['id']);
+        } catch (\Exception $e) {
+            throw new HttpBadRequestException($request, $e->getMessage(), $e);
+        }
+
+        $refererHeader = $request->getHeader('HTTP_REFERER');
+
+        return $response->withHeader('Location', $refererHeader);
+    }
+
     protected function fetchTrailersList(): Collection
     {
         $data = $this->em->getRepository(Movie::class)
@@ -66,5 +81,18 @@ class HomeController
         $r = $this->em->getRepository(Movie::class);
 
         return $r->findById($id);
+    }
+
+    protected function addTrailerLike(int $movieId): void
+    {
+        /** @var LikesRepository $r */
+        $r = $this->em->getRepository(Likes::class);
+        /** @var Likes $like */
+        $like = $r->getByMovieId($movieId);
+        $like->setCount(
+            $like->getCount() + 1
+        );
+        $this->em->persist($like);
+        $this->em->flush();
     }
 }
